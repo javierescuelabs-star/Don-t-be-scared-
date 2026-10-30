@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f0d">
+<title>Galaxy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0f0d; --a1:#3ddc97; --a3:#ffb454; --ink:#eef4f1; --dim:#8b9a93; --line:rgba(255,255,255,.08); --surface:rgba(255,255,255,.035);
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0a0f0d; --a1:#3ddc97; --a3:#ffb454; --ink:#eef4f1; --dim:#8b9a93; } }
+  :root[data-theme="dark"] { --bg:#0a0f0d; --a1:#3ddc97; --a3:#ffb454; --ink:#eef4f1; --dim:#8b9a93; }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html { height:100%; scroll-padding-top:env(safe-area-inset-top,0px); }
+  html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--ink); }
+  body { font-family:'Cairo','Space Grotesk',system-ui,sans-serif;
+    background-image:radial-gradient(circle at 15% -8%, rgba(61,220,151,.14), transparent 45%), radial-gradient(circle at 100% 10%, rgba(255,180,84,.08), transparent 45%), repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px); }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:manipulation; }
+  .mono { font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .top { position:fixed; left:0; right:0; top:env(safe-area-inset-top,0px); display:flex; align-items:center; justify-content:space-between; padding:18px 22px 12px; border-bottom:1px solid var(--line); background:linear-gradient(var(--bg),rgba(10,15,13,0)); direction:ltr; pointer-events:none; }
+  .brand { display:flex; align-items:center; gap:11px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; }
+  .logo { width:36px; height:36px; border-radius:10px; background:rgba(61,220,151,.12); border:1px solid rgba(61,220,151,.4); display:flex; align-items:center; justify-content:center; }
+  .logo i { width:14px; height:14px; border-radius:50%; border:2px solid var(--a1); display:block; box-shadow:0 0 0 4px rgba(61,220,151,.1); }
+  .badge { font-size:10.5px; font-weight:600; letter-spacing:1.5px; color:var(--a3); padding:5px 11px; border-radius:6px; border:1px solid rgba(255,180,84,.4); }
+  .panel { position:fixed; left:0; right:0; bottom:calc(env(safe-area-inset-bottom,0px) + 22px); padding:0 22px; display:flex; justify-content:center; pointer-events:none; }
+  .card { width:100%; max-width:420px; background:rgba(10,15,13,.78); border:1px solid var(--line); border-radius:14px; padding:16px 18px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); min-height:104px; }
+  .meta { display:flex; justify-content:space-between; font-size:10.5px; letter-spacing:1.5px; color:var(--dim); direction:ltr; margin-bottom:10px; }
+  .meta b { color:var(--a1); font-weight:600; }
+  #msg { font-size:1.15rem; font-weight:600; line-height:1.7; transition:opacity .25s, transform .25s; }
+  #msg.hint { color:var(--dim); font-weight:400; font-size:1rem; }
+  #msg.out { opacity:0; transform:translateY(6px); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="top"><div class="brand"><div class="logo"><i></i></div>GALAXY</div><div class="badge mono">TAP·ME</div></div>
+<div class="panel"><div class="card">
+  <div class="meta mono"><span id="pn">TARGET: —</span><span>HITS <b id="hits">00</b></span></div>
+  <div id="msg" class="hint" dir="auto">اضغط على أي كوكب.</div>
+</div></div>
+<script>
+(function () {
+  var cv = document.getElementById('c'), x = cv.getContext('2d'), W, H, cx, cy, Rg, stars = [], pulses = [];
+  var P = [
+    { n: 'KEPLER-07', a: .22, s: .9, r: 6, c: '#c8b8a0' }, { n: 'AURA', a: .34, s: .7, r: 9, c: '#3ddc97' },
+    { n: 'OBSIDIAN', a: .46, s: .55, r: 8, c: '#8b9a93' }, { n: 'EMBER', a: .58, s: .45, r: 11, c: '#ffb454' },
+    { n: 'NEREID', a: .70, s: .35, r: 13, c: '#7fd1b9' }, { n: 'TITAN-9', a: .82, s: .27, r: 14, c: '#e8c28a', ring: 1 },
+    { n: 'VOID', a: .94, s: .2, r: 10, c: '#b8c7bf' }
+  ];
+  P.forEach(function (p, i) { p.t0 = i * 1.7; p.hit = -9; });
+  function resize() {
+    var d = Math.min(window.devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+    cv.width = W * d; cv.height = H * d; x.setTransform(d, 0, 0, d, 0, 0);
+    cx = W / 2; cy = H * .43; Rg = Math.min(W * .47, H * .3 / .5);
+    stars = [];
+    for (var i = 0; i < 1500; i++) {
+      var r = Math.pow(Math.random(), .75), arm = i % 2, th = arm * Math.PI + r * 3.4 + (Math.random() - .5) * (.9 - r * .5);
+      stars.push({ r: r, th: th, z: Math.random() * 1.4 + .5, al: Math.random() * .6 + .25, warm: Math.random() < (1 - r) * .5 });
+    }
+  }
+  addEventListener('resize', resize); resize();
+
+  var roasts = [
+    'Fuck you.', 'شنو تدوس؟ ما عندك شغلة أحسن من هاي؟', 'المجرة كلها ما كفت تستوعب غباءك.', 'مخك أصغر من هذا الكوكب بمليون مرة.',
+    'Go fuck yourself.', 'الثقب الأسود ما يبلعك، حتى هو ينفر منك.', 'وجودك بالمجرة غلطة حسابية.', 'كل هذا الكون وما لكيت غير هالتفاهة تسويها.',
+    'استمر بالدوس يا فاشل، يمكن يطلع شي يعجبك.', 'حتى الكوكب يحس بالحرج لأنك دسته.', 'Fuck off.', 'لو الغباء طاقة، كنت شغلت المجرة كلها.',
+    'ولا كوكب بالمجرة يستاهل لمستك.', 'اللي يدوس هواي مثلك ما عنده أصدقاء، بس كوكب.', 'يعني فعلاً دسته؟ يا حرام عليك.'
+  ];
+  var last = -1, hits = 0, msg = document.getElementById('msg'), pn = document.getElementById('pn'), hc = document.getElementById('hits'), tm;
+  function roast(p) {
+    var i; do { i = Math.floor(Math.random() * roasts.length); } while (i === last); last = i; hits++;
+    hc.textContent = (hits < 10 ? '0' : '') + hits; pn.textContent = 'TARGET: ' + p.n;
+    msg.className = 'out'; clearTimeout(tm);
+    tm = setTimeout(function () { msg.textContent = roasts[i]; msg.className = ''; }, 180);
+    try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    var best = null, bd = 1e9;
+    P.forEach(function (p) { var d = Math.hypot(e.clientX - p.sx, e.clientY - p.sy); if (d < p.r + 18 && d < bd) { bd = d; best = p; } });
+    if (best) { best.hit = performance.now() / 1000; pulses.push({ x: best.sx, y: best.sy, t: best.hit, c: best.c }); roast(best); }
+  });
+
+  function planet(p, t) {
+    var k = 1 + Math.max(0, .35 * Math.exp(-(t - p.hit) * 5)) * Math.cos((t - p.hit) * 30), r = p.r * k, px = p.sx, py = p.sy;
+    if (p.ring) { x.strokeStyle = 'rgba(232,194,138,.55)'; x.lineWidth = 1.4; x.beginPath(); x.ellipse(px, py, r * 2.1, r * .6, -.35, 0, 6.2832); x.stroke(); }
+    x.fillStyle = p.c; x.beginPath(); x.arc(px, py, r, 0, 6.2832); x.fill();
+    var g = x.createRadialGradient(px - r * .4, py - r * .4, r * .1, px, py, r * 1.05);
+    g.addColorStop(0, 'rgba(255,255,255,.4)'); g.addColorStop(.5, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.72)');
+    x.fillStyle = g; x.beginPath(); x.arc(px, py, r, 0, 6.2832); x.fill();
+    if (p.ring) { x.strokeStyle = 'rgba(232,194,138,.7)'; x.beginPath(); x.ellipse(px, py, r * 2.1, r * .6, -.35, .1, 3.04); x.stroke(); }
+    x.fillStyle = 'rgba(238,244,241,.45)'; x.font = '9px "IBM Plex Mono",monospace'; x.textAlign = 'center'; x.fillText(p.n, px, py + r + 14);
+  }
+
+  function frame(ms) {
+    var t = ms / 1000; x.clearRect(0, 0, W, H);
+    for (var i = 0; i < P.length; i++) {
+      x.strokeStyle = 'rgba(255,255,255,.055)'; x.lineWidth = 1; x.beginPath(); x.ellipse(cx, cy, Rg * P[i].a, Rg * P[i].a * .5, 0, 0, 6.2832); x.stroke();
+    }
+    var cg = x.createRadialGradient(cx, cy, 0, cx, cy, Rg * .42);
+    cg.addColorStop(0, 'rgba(255,180,84,.38)'); cg.addColorStop(.5, 'rgba(61,220,151,.07)'); cg.addColorStop(1, 'rgba(61,220,151,0)');
+    x.fillStyle = cg; x.fillRect(cx - Rg, cy - Rg, Rg * 2, Rg * 2);
+    for (var s = 0; s < stars.length; s++) {
+      var q = stars[s], th = q.th + t * .045 / (.3 + q.r), sx = cx + Math.cos(th) * q.r * Rg, sy = cy + Math.sin(th) * q.r * Rg * .5;
+      x.fillStyle = q.warm ? 'rgba(255,200,130,' + q.al + ')' : 'rgba(205,240,225,' + q.al * .9 + ')'; x.fillRect(sx, sy, q.z, q.z);
+    }
+    var back = [], front = [];
+    P.forEach(function (p) {
+      var th = p.t0 + t * p.s * .22; p.sx = cx + Math.cos(th) * Rg * p.a; p.sy = cy + Math.sin(th) * Rg * p.a * .5; (Math.sin(th) < 0 ? back : front).push(p);
+    });
+    back.forEach(function (p) { planet(p, t); });
+    var sg = x.createRadialGradient(cx, cy, 0, cx, cy, 16); sg.addColorStop(0, '#fff3dc'); sg.addColorStop(.35, '#ffb454'); sg.addColorStop(1, 'rgba(255,180,84,0)');
+    x.fillStyle = sg; x.beginPath(); x.arc(cx, cy, 16, 0, 6.2832); x.fill();
+    front.forEach(function (p) { planet(p, t); });
+    for (var k = pulses.length - 1; k >= 0; k--) {
+      var u = pulses[k], age = t - u.t; if (age > .8) { pulses.splice(k, 1); continue; }
+      x.strokeStyle = 'rgba(255,180,84,' + (1 - age / .8) * .8 + ')'; x.lineWidth = 1.5; x.beginPath(); x.arc(u.x, u.y, 8 + age * 70, 0, 6.2832); x.stroke();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
